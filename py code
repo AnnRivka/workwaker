@@ -1,0 +1,112 @@
+import tkinter as tk
+from tkinter import messagebox, simpledialog
+import mysql.connector
+import cv2
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+import smtplib
+import winsound
+
+# Connect to MySQL database
+db = mysql.connector.connect(
+    host="localhost",
+    user="root",
+    passwd="12345678",
+    database="smart_todo_list"
+)
+
+# Function to add a task to the database
+def add_task():
+    task_name = simpledialog.askstring("Task Name", "Enter the task name:")
+    if task_name:
+        task_duration = simpledialog.askinteger("Task Duration", "Enter the task duration in minutes:")
+        if task_duration:
+            cursor = db.cursor()
+            cursor.execute("INSERT INTO tasks (task_name, duration) VALUES (%s, %s)", (task_name, task_duration))
+            db.commit()
+            messagebox.showinfo("Success", "Task added successfully!")
+        else:
+            messagebox.showwarning("Task Duration", "Task duration cannot be empty!")
+    else:
+        messagebox.showwarning("Task Name", "Task name cannot be empty!")
+
+# Function to start a task
+def start_task():
+    cursor = db.cursor()
+    cursor.execute("SELECT * FROM tasks ORDER BY id DESC LIMIT 1")
+    task = cursor.fetchone()
+    if task:
+        task_name, task_duration = task[1], int(task[2]) * 60  # Convert task duration to seconds
+        messagebox.showinfo("Task Started", f"Task '{task_name}' has started!")
+        for _ in range(task_duration // 60, 0, -1):
+            messagebox.showwarning("Time Remaining", f"{_} minutes remaining for '{task_name}'")
+        messagebox.showwarning("Time's Up!", f"Time's up for task '{task_name}'")
+        winsound.Beep(1000, 2000)  # Beep for 2 seconds when time's up
+    else:
+        messagebox.showwarning("No Task", "No task available.")
+
+# Function to capture and send an image
+def capture_and_send():
+    task_name = simpledialog.askstring("Task Name", "Enter the task name:")
+    if task_name:
+        camera = cv2.VideoCapture(0)
+        return_value, image = camera.read()
+        cv2.imwrite(f'{task_name}.jpg', image)  # Save image with task name as file name
+        del camera
+        send_email('kavyasruthivs@karunya.edu,in.com', f'Task Completed: {task_name}', 'Task completed successfully!', f'{task_name}.jpg')
+    else:
+        messagebox.showwarning("No Task Name", "Task name cannot be empty!")
+
+# Function to send email using Gmail SMTP
+def send_email(receiver_email, subject, message, image_path=None):
+    # Your email sending code here
+    sender_email = "smarttodo2005@gmail.com"
+    password = "kavya@2005"
+
+    # Create a multipart message
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = receiver_email
+    msg['Subject'] = subject
+
+    # Add message body
+    msg.attach(MIMEText(message, 'plain'))
+
+    # If an image is provided, attach it to the email
+    if image_path:
+        with open(image_path, 'rb') as attachment:
+            image_part = MIMEImage(attachment.read(), name=f'{subject}.jpg')
+        msg.attach(image_part)
+
+    # Send the email using Gmail SMTP
+    try:
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        server.login(sender_email, password)
+        server.sendmail(sender_email, receiver_email, msg.as_string())
+        server.quit()
+        messagebox.showinfo("Email Sent", "Email sent successfully!")
+    except Exception as e:
+        messagebox.showerror("Email Error", f"Failed to send email: {e}")
+
+# Create GUI
+root = tk.Tk()
+root.title("Smart To-Do List")
+
+# Frame for task actions
+action_frame = tk.Frame(root)
+action_frame.pack(pady=10)
+
+tk.Button(action_frame, text="Add Task", command=add_task).grid(row=0, column=0, padx=10, pady=5)
+tk.Button(action_frame, text="Start Task", command=start_task).grid(row=0, column=1, padx=10, pady=5)
+tk.Button(action_frame, text="Capture and Send", command=capture_and_send).grid(row=0, column=2, padx=10, pady=5)
+
+root.mainloop() 
+
+
+
+
+
+
+
+
